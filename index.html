@@ -324,12 +324,12 @@ function setNowDefault() {
 }
 
 const JSONBIN_ID = '6a465c5eda38895dfe223dce';
-const JSONBIN_KEY = '$2a$10$dWo7b/SsLWZbedZa432VNOkx/NPgHRyceP/KerQLjlOphpZTyjnCW';
+const JSONBIN_KEY = '$2a$10$dU0iqZpuAzFeOFSJDG4IruKYigWk27bdtQL17DpJbW9an/yCr4rxi';
 const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_ID;
 
 async function loadEntries() {
   try {
-    const res = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Master-Key': JSONBIN_KEY } });
+    const res = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Access-Key': JSONBIN_KEY } });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     entries = (data.record && Array.isArray(data.record.entries)) ? data.record.entries : [];
@@ -345,7 +345,7 @@ async function saveEntries() {
     try {
       const res = await fetch(JSONBIN_URL, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_KEY },
+        headers: { 'Content-Type': 'application/json', 'X-Access-Key': JSONBIN_KEY },
         body: JSON.stringify({ entries: entries })
       });
       if (res.ok) { lastSaveError = null; return true; }
