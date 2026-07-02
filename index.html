@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日経225ミニ 取引ジャーナル</title>
+<style>
+  :root {
+    --bg: #FAF9F6;
+    --card: #FFFFFF;
+    --border: #E4E1D8;
+    --border-strong: #C9C5B8;
+    --text: #23221E;
+    --text-mute: #6B6A62;
+    --text-faint: #9A9890;
+    --accent: #1D9E75;
+    --accent-bg: #E1F5EE;
+    --accent-text: #085041;
+    --danger: #D85A30;
+    --danger-bg: #FAECE7;
+    --danger-text: #712B13;
+    --neutral: #888780;
+    --neutral-bg: #F1EFE8;
+    --neutral-text: #444441;
+    --purple: #8A63D2;
+    --purple-bg: #EEE8FA;
+    --purple-text: #4A2F8A;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+    --sans: -apple-system, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17161A;
+      --card: #201F24;
+      --border: #34333A;
+      --border-strong: #454450;
+      --text: #EDEBE6;
+      --text-mute: #A6A49C;
+      --text-faint: #75746E;
+      --accent: #4FCE9F;
+      --accent-bg: #0F3A2E;
+      --accent-text: #9FE1CB;
+      --danger: #F0997B;
+      --danger-bg: #472417;
+      --danger-text: #F5C4B3;
+      --neutral: #B4B2A9;
+      --neutral-bg: #2C2C2A;
+      --neutral-text: #D3D1C7;
+      --purple: #B39DE8;
+      --purple-bg: #362A52;
+      --purple-text: #D9CBF5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    padding: 20px 14px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  header.top { margin-bottom: 22px; }
+  header.top h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: 0.2px; }
+  header.top p { font-size: 13px; color: var(--text-mute); margin: 0; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 22px; }
+  .stat-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 8px; text-align: center;
+  }
+  .stat-box .num { font-family: var(--mono); font-size: 18px; font-weight: 600; }
+  .stat-box .lab { font-size: 11px; color: var(--text-mute); margin-top: 2px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 14px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--text-mute); margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: 14px; font-family: var(--sans);
+  }
+  .field input[type=number], .field input[type=datetime-local] { font-family: var(--mono); }
+  .field textarea { resize: vertical; min-height: 48px; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  @media (max-width: 480px) { .row3 { grid-template-columns: 1fr; } }
+
+  .seg { display: flex; gap: 6px; }
+  .seg button {
+    flex: 1; padding: 8px 6px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--bg); color: var(--text-mute); font-size: 13px; cursor: pointer;
+  }
+  .seg button.active[data-v="buy"] { background: var(--accent-bg); color: var(--accent-text); border-color: var(--accent); }
+  .seg button.active[data-v="sell"] { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger); }
+  .seg button.active[data-v="wait"] { background: var(--neutral-bg); color: var(--neutral-text); border-color: var(--neutral); }
+  .seg button.active[data-v="trend"] { background: var(--accent-bg); color: var(--accent-text); border-color: var(--accent); }
+  .seg button.active[data-v="counter"] { background: var(--purple-bg); color: var(--purple-text); border-color: var(--purple); }
+
+  .btn-primary {
+    width: 100%; padding: 11px; border-radius: 8px; border: none;
+    background: var(--text); color: var(--bg); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 4px;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: default; }
+  .btn-secondary {
+    padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: transparent; color: var(--text-mute); font-size: 12px; cursor: pointer;
+  }
+
+  .entry { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+  .entry:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+  .entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .entry-head .dt { font-size: 12px; color: var(--text-faint); font-family: var(--mono); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .badge.buy { background: var(--accent-bg); color: var(--accent-text); }
+  .badge.sell { background: var(--danger-bg); color: var(--danger-text); }
+  .badge.wait { background: var(--neutral-bg); color: var(--neutral-text); }
+  .badge.trend { background: var(--accent-bg); color: var(--accent-text); }
+  .badge.counter { background: var(--purple-bg); color: var(--purple-text); }
+  .badge.outline { background: transparent; border: 1px solid var(--border-strong); color: var(--text-mute); }
+  .badge-row { display: flex; gap: 6px; align-items: center; }
+
+  .breakdown { display: flex; gap: 16px; font-size: 12px; color: var(--text-mute); margin-bottom: 22px; padding: 0 2px; flex-wrap: wrap; }
+  .breakdown b { color: var(--text); font-family: var(--mono); }
+  .entry-body { font-size: 13px; margin-top: 8px; color: var(--text); }
+  .entry-body .line { display: flex; gap: 6px; margin-bottom: 3px; }
+  .entry-body .line .k { color: var(--text-mute); min-width: 84px; flex-shrink: 0; }
+  .entry-body .line .v { font-family: var(--mono); }
+  .entry-note { font-size: 13px; color: var(--text-mute); margin-top: 6px; white-space: pre-wrap; }
+  .entry-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .entry-actions button {
+    font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-mute); cursor: pointer;
+  }
+
+  .checklist { display: flex; flex-direction: column; gap: 8px; }
+  .chk { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .chk input { width: auto; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--accent); }
+  .chk-score { font-size: 12px; color: var(--text-mute); margin-top: 6px; }
+  .chk-score .n { font-family: var(--mono); font-weight: 600; color: var(--text); }
+  .trigger-summary { font-size: 12px; margin-top: 6px; }
+  .trigger-summary .v { font-family: var(--mono); font-weight: 600; }
+  .trigger-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 12px; color: var(--text-mute); }
+  .trigger-list li { padding: 1px 0; }
+  .trigger-list li.ok::before { content: "✓ "; color: var(--accent); }
+  .trigger-list li.no::before { content: "✗ "; color: var(--text-faint); }
+
+  .empty { text-align: center; color: var(--text-faint); font-size: 13px; padding: 24px 0; }
+  .toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px; }
+  .status { font-size: 12px; color: var(--text-faint); text-align: center; padding: 6px; }
+
+  .failsafe { display: none; margin-top: 10px; padding: 12px; border: 1px solid var(--danger); border-radius: 8px; background: var(--danger-bg); }
+  .failsafe.show { display: block; }
+  .failsafe p { font-size: 12px; color: var(--danger-text); margin: 0 0 8px; }
+  .failsafe textarea { width: 100%; height: 90px; font-family: var(--mono); font-size: 11px; padding: 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--card); color: var(--text); }
+  .failsafe button { margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>日経225ミニ 取引ジャーナル</h1>
+    <p>計画(Plan)を記録し、結果(Check)を積み重ねて次に活かすための記録ツール</p>
+  </header>
+
+  <div class="stat-row" id="statRow"></div>
+  <div class="breakdown" id="breakdownRow"></div>
+
+  <div class="card">
+    <h2>新しい記録</h2>
+    <form id="entryForm">
+      <div class="row2">
+        <div class="field">
+          <label>日時</label>
+          <input type="datetime-local" id="f_datetime" required>
+        </div>
+        <div class="field">
+          <label>現在値</label>
+          <input type="number" step="1" id="f_price" placeholder="例: 69800" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>シナリオ</label>
+        <div class="seg" id="segDirection">
+          <button type="button" data-v="buy">買い</button>
+          <button type="button" data-v="sell">売り</button>
+          <button type="button" data-v="wait">見送り</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>トレードタイプ（任意）</label>
+        <div class="seg" id="segTradeType">
+          <button type="button" data-v="trend">順張り</button>
+          <button type="button" data-v="counter">逆張り</button>
+        </div>
+      </div>
+
+      <div id="priceFields">
+        <div class="row3">
+          <div class="field">
+            <label>エントリー価格</label>
+            <input type="number" step="1" id="f_entry">
+          </div>
+          <div class="field">
+            <label>損切り価格</label>
+            <input type="number" step="1" id="f_stop">
+          </div>
+          <div class="field">
+            <label>利確価格</label>
+            <input type="number" step="1" id="f_target">
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>エントリーのきっかけチェックリスト</label>
+        <div class="checklist" id="checklist">
+          <label class="chk"><input type="checkbox" data-key="trendAlign"> 中長期トレンド認識：日足/週足でトレンド方向を判断できている</label>
+          <label class="chk"><input type="checkbox" data-key="mtfAlign"> 週足・日足など複数時間軸の方向が一致している</label>
+          <label class="chk"><input type="checkbox" data-key="levelConfirm"> 重要価格帯を日足終値で確認している</label>
+          <label class="chk"><input type="checkbox" data-key="invalidation"> エントリー前に無効化条件（トレンドが崩れる価格）を決めている</label>
+          <label class="chk"><input type="checkbox" data-key="riskReward"> リスクリワードが1:2以上でEVがプラスと言える</label>
+          <label class="chk"><input type="checkbox" data-key="eventAware"> 保有期間中の主要イベント（日銀会合・米雇用統計等）を把握し対応方針がある</label>
+        </div>
+        <div class="chk-score">きっかけの充足度：<span class="n" id="chkScore">0/5</span></div>
+      </div>
+
+      <div class="field">
+        <label>判断の根拠</label>
+        <textarea id="f_rationale" placeholder="例: 週足で上昇トレンド継続、日足終値で70,000円を上抜けて維持"></textarea>
+      </div>
+
+      <div class="field">
+        <label>結果</label>
+        <select id="f_outcome">
+          <option value="pending">未確定</option>
+          <option value="target_hit">利確ヒット</option>
+          <option value="stop_hit">損切りヒット</option>
+          <option value="wait_correct">見送りが正解だった</option>
+          <option value="wait_missed">見送ったが逆に動いた</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>反省点・気づき</label>
+        <textarea id="f_reflection" placeholder="例: ブレイク確認が甘く早すぎるエントリーだった"></textarea>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submitBtn">記録を保存</button>
+
+      <div class="failsafe" id="failSafe">
+        <p>保存に失敗しました。念のため、この内容をコピーして手元に控えておいてください。時間を置いてから「記録を保存」をもう一度押すと、再保存を試みます。</p>
+        <textarea id="failSafeText" readonly></textarea>
+        <button type="button" class="btn-secondary" id="failSafeCopy">内容をコピー</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <button class="btn-secondary" id="exportBtn">CSV書き出し</button>
+      <button class="btn-secondary" id="resetBtn">全て削除</button>
+    </div>
+    <h2>履歴</h2>
+    <div id="historyList"><div class="status">読み込み中…</div></div>
+  </div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'entries';
+const TRIGGER_DEFS = [
+  { key: 'trendAlign', label: '中長期トレンド認識（日足/週足）' },
+  { key: 'mtfAlign', label: '複数時間軸の方向が一致' },
+  { key: 'levelConfirm', label: '重要価格帯を日足終値で確認' },
+  { key: 'invalidation', label: '無効化条件を事前に決めている' },
+  { key: 'riskReward', label: 'リスクリワード1:2以上・EVプラス' },
+  { key: 'eventAware', label: '保有期間中の主要イベントを把握' }
+];
+let entries = [];
+let editingId = null;
+let direction = null;
+let tradeType = null;
+let lastSaveError = null;
+
+function getChecklistState() {
+  const state = {};
+  document.querySelectorAll('#checklist input[type=checkbox]').forEach(cb => {
+    state[cb.dataset.key] = cb.checked;
+  });
+  return state;
+}
+
+function setChecklistState(state) {
+  document.querySelectorAll('#checklist input[type=checkbox]').forEach(cb => {
+    cb.checked = !!(state && state[cb.dataset.key]);
+  });
+  updateChecklistScore();
+}
+
+function updateChecklistScore() {
+  const state = getChecklistState();
+  const count = Object.values(state).filter(Boolean).length;
+  document.getElementById('chkScore').textContent = count + '/' + TRIGGER_DEFS.length;
+}
+
+document.getElementById('checklist').addEventListener('change', updateChecklistScore);
+
+function setNowDefault() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('f_datetime').value = now.toISOString().slice(0,16);
+}
+
+const JSONBIN_ID = '6a463e7eda38895dfe2198cd';
+const JSONBIN_KEY = '$2a$10$jLrKb/jsZ7UnClAm7W/mleNREgKi/th5AkSXbtAS93AEERWd.RgPq';
+const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_ID;
+
+async function loadEntries() {
+  try {
+    const res = await fetch(JSONBIN_URL + '/latest', { headers: { 'X-Access-Key': JSONBIN_KEY } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    entries = (data.record && Array.isArray(data.record.entries)) ? data.record.entries : [];
+  } catch (e) {
+    console.error('読み込みエラー:', e);
+    entries = [];
+  }
+  render();
+}
+
+async function saveEntries() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(JSONBIN_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Access-Key': JSONBIN_KEY },
+        body: JSON.stringify({ entries: entries })
+      });
+      if (res.ok) { lastSaveError = null; return true; }
+      const bodyText = await res.text().catch(() => '');
+      lastSaveError = 'HTTP ' + res.status + '  ' + bodyText.slice(0, 200);
+      console.error('保存に失敗しました（HTTP ' + res.status + '）attempt', attempt + 1, bodyText);
+    } catch (e) {
+      lastSaveError = (e && e.message) ? e.message : String(e);
+      console.error('Storage error (attempt ' + (attempt + 1) + '):', e);
+    }
+    if (attempt < 2) await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
+  }
+  return false;
+}
+
+function fmtDt(iso) {
+  const d = new Date(iso);
+  return d.getFullYear() + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0') +
+    ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function outcomeLabel(o) {
+  return {
+    pending: '未確定', target_hit: '利確ヒット', stop_hit: '損切りヒット',
+    wait_correct: '見送り正解', wait_missed: '見送り外れ'
+  }[o] || o;
+}
+
+function directionLabel(d) {
+  return { buy: '買い', sell: '売り', wait: '見送り' }[d] || d;
+}
+
+function tradeTypeLabel(t) {
+  return { trend: '順張り', counter: '逆張り' }[t] || null;
+}
+
+function computeRR(e) {
+  if (e.direction === 'wait' || !e.entry || !e.stop || !e.target) return null;
+  let risk, reward;
+  if (e.direction === 'buy') {
+    risk = e.entry - e.stop;
+    reward = e.target - e.entry;
+  } else {
+    risk = e.stop - e.entry;
+    reward = e.entry - e.target;
+  }
+  if (!risk || risk <= 0) return null;
+  return (reward / risk).toFixed(1);
+}
+
+function renderStats() {
+  const total = entries.length;
+  const settled = entries.filter(e => e.outcome === 'target_hit' || e.outcome === 'stop_hit');
+  const wins = settled.filter(e => e.outcome === 'target_hit').length;
+  const waits = entries.filter(e => e.direction === 'wait').length;
+  const winRate = settled.length ? Math.round((wins / settled.length) * 100) : null;
+
+  const box = document.getElementById('statRow');
+  box.innerHTML = `
+    <div class="stat-box"><div class="num">${total}</div><div class="lab">総記録数</div></div>
+    <div class="stat-box"><div class="num">${settled.length}</div><div class="lab">確定トレード</div></div>
+    <div class="stat-box"><div class="num">${winRate === null ? '—' : winRate + '%'}</div><div class="lab">勝率</div></div>
+    <div class="stat-box"><div class="num">${waits}</div><div class="lab">見送り件数</div></div>
+  `;
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (!entries.length) {
+    list.innerHTML = '<div class="empty">まだ記録がありません。上のフォームから最初の記録を追加してください。</div>';
+    return;
+  }
+  const sorted = [...entries].sort((a,b) => new Date(b.datetime) - new Date(a.datetime));
+  list.innerHTML = sorted.map(e => {
+    const rr = computeRR(e);
+    const triggers = e.triggers || {};
+    const metCount = TRIGGER_DEFS.filter(t => triggers[t.key]).length;
+    const triggerHtml = `
+      <div class="trigger-summary">きっかけ充足度：<span class="v">${metCount}/${TRIGGER_DEFS.length}</span></div>
+      <ul class="trigger-list">
+        ${TRIGGER_DEFS.map(t => `<li class="${triggers[t.key] ? 'ok' : 'no'}">${t.label}</li>`).join('')}
+      </ul>
+    `;
+    let priceLines = '';
+    if (e.direction !== 'wait') {
+      priceLines = `
+        <div class="line"><span class="k">エントリー</span><span class="v">${e.entry ?? '—'}</span></div>
+        <div class="line"><span class="k">損切り</span><span class="v">${e.stop ?? '—'}</span></div>
+        <div class="line"><span class="k">利確</span><span class="v">${e.target ?? '—'}</span></div>
+        ${rr ? `<div class="line"><span class="k">リスクリワード</span><span class="v">1:${rr}</span></div>` : ''}
+      `;
+    }
+    return `
+      <div class="entry" data-id="${e.id}">
+        <div class="entry-head">
+          <span class="dt">${fmtDt(e.datetime)} ・ ${e.price}円</span>
+          <span class="badge-row">
+            <span class="badge ${e.direction}">${directionLabel(e.direction)}</span>
+            ${e.tradeType ? `<span class="badge ${e.tradeType}">${tradeTypeLabel(e.tradeType)}</span>` : ''}
+          </span>
+        </div>
+        <div class="entry-body">
+          ${priceLines}
+          <div class="line"><span class="k">結果</span><span class="v">${outcomeLabel(e.outcome)}</span></div>
+        </div>
+        ${triggerHtml}
+        ${e.rationale ? `<div class="entry-note"><strong>根拠:</strong> ${escapeHtml(e.rationale)}</div>` : ''}
+        ${e.reflection ? `<div class="entry-note"><strong>反省:</strong> ${escapeHtml(e.reflection)}</div>` : ''}
+        <div class="entry-actions">
+          <button class="editBtn">編集</button>
+          <button class="delBtn">削除</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.editBtn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      const id = ev.target.closest('.entry').dataset.id;
+      loadIntoForm(id);
+    });
+  });
+  list.querySelectorAll('.delBtn').forEach(btn => {
+    btn.addEventListener('click', async (ev) => {
+      const id = ev.target.closest('.entry').dataset.id;
+      if (confirm('この記録を削除しますか？')) {
+        const previousEntries = entries;
+        entries = entries.filter(e => e.id !== id);
+        const ok = await saveEntries();
+        if (!ok) {
+          entries = previousEntries;
+          alert('削除の保存に失敗しました。もう一度お試しください。');
+        }
+        render();
+      }
+    });
+  });
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function winRateOf(list) {
+  const settled = list.filter(e => e.outcome === 'target_hit' || e.outcome === 'stop_hit');
+  const wins = settled.filter(e => e.outcome === 'target_hit').length;
+  return settled.length ? Math.round((wins / settled.length) * 100) : null;
+}
+
+function renderBreakdown() {
+  const box = document.getElementById('breakdownRow');
+  const trendList = entries.filter(e => e.tradeType === 'trend');
+  const counterList = entries.filter(e => e.tradeType === 'counter');
+  if (!trendList.length && !counterList.length) { box.innerHTML = ''; return; }
+  const trendWR = winRateOf(trendList);
+  const counterWR = winRateOf(counterList);
+  box.innerHTML = `
+    <span>順張り：<b>${trendList.length}件</b>（勝率 <b>${trendWR === null ? '—' : trendWR + '%'}</b>）</span>
+    <span>逆張り：<b>${counterList.length}件</b>（勝率 <b>${counterWR === null ? '—' : counterWR + '%'}</b>）</span>
+  `;
+}
+
+function render() {
+  renderStats();
+  renderBreakdown();
+  renderHistory();
+}
+
+function setDirection(v) {
+  direction = v;
+  document.querySelectorAll('#segDirection button').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === v);
+  });
+  document.getElementById('priceFields').style.display = v === 'wait' ? 'none' : 'block';
+}
+
+document.getElementById('segDirection').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button');
+  if (btn) setDirection(btn.dataset.v);
+});
+
+function setTradeType(v) {
+  tradeType = v;
+  document.querySelectorAll('#segTradeType button').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === tradeType);
+  });
+}
+
+document.getElementById('segTradeType').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button');
+  if (!btn) return;
+  setTradeType(tradeType === btn.dataset.v ? null : btn.dataset.v);
+});
+
+function loadIntoForm(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  editingId = id;
+  document.getElementById('f_datetime').value = e.datetime;
+  document.getElementById('f_price').value = e.price;
+  setDirection(e.direction);
+  setTradeType(e.tradeType || null);
+  document.getElementById('f_entry').value = e.entry ?? '';
+  document.getElementById('f_stop').value = e.stop ?? '';
+  document.getElementById('f_target').value = e.target ?? '';
+  document.getElementById('f_rationale').value = e.rationale ?? '';
+  document.getElementById('f_outcome').value = e.outcome;
+  document.getElementById('f_reflection').value = e.reflection ?? '';
+  setChecklistState(e.triggers);
+  document.getElementById('submitBtn').textContent = '記録を更新';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.getElementById('entryForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  if (!direction) { alert('シナリオ（買い/売り/見送り）を選択してください。'); return; }
+
+  const data = {
+    id: editingId || (Date.now().toString(36) + Math.random().toString(36).slice(2,7)),
+    datetime: document.getElementById('f_datetime').value,
+    price: document.getElementById('f_price').value,
+    direction: direction,
+    tradeType: tradeType,
+    entry: document.getElementById('f_entry').value || null,
+    stop: document.getElementById('f_stop').value || null,
+    target: document.getElementById('f_target').value || null,
+    rationale: document.getElementById('f_rationale').value,
+    outcome: document.getElementById('f_outcome').value,
+    reflection: document.getElementById('f_reflection').value,
+    triggers: getChecklistState()
+  };
+
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = '保存中…';
+
+  const previousEntries = entries;
+  entries = editingId
+    ? entries.map(e => e.id === editingId ? data : e)
+    : [...entries, data];
+
+  const ok = await saveEntries();
+
+  if (!ok) {
+    entries = previousEntries;
+    submitBtn.disabled = false;
+    submitBtn.textContent = editingId ? '記録を更新' : '記録を保存';
+    document.getElementById('failSafeText').value = 'エラー内容: ' + lastSaveError + '\n\n' + JSON.stringify(data, null, 2);
+    document.getElementById('failSafe').classList.add('show');
+    alert('保存に失敗しました。\n\nエラー内容:\n' + lastSaveError + '\n\n入力内容は消えていません。');
+    return;
+  }
+
+  document.getElementById('failSafe').classList.remove('show');
+  editingId = null;
+  ev.target.reset();
+  setNowDefault();
+  setDirection(null);
+  setTradeType(null);
+  setChecklistState({});
+  document.querySelectorAll('#segDirection button').forEach(b => b.classList.remove('active'));
+  submitBtn.disabled = false;
+  submitBtn.textContent = '記録を保存';
+  render();
+});
+
+document.getElementById('resetBtn').addEventListener('click', async () => {
+  if (confirm('すべての記録を削除します。元に戻せません。よろしいですか？')) {
+    const previousEntries = entries;
+    entries = [];
+    const ok = await saveEntries();
+    if (!ok) {
+      entries = previousEntries;
+      alert('削除の保存に失敗しました。もう一度お試しください。');
+    }
+    render();
+  }
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if (!entries.length) { alert('記録がありません。'); return; }
+  const headers = ['日時','現在値','シナリオ','トレードタイプ','エントリー','損切り','利確','結果','根拠','反省','きっかけ充足度', ...TRIGGER_DEFS.map(t => t.label)];
+  const rows = entries.map(e => {
+    const triggers = e.triggers || {};
+    const metCount = TRIGGER_DEFS.filter(t => triggers[t.key]).length;
+    return [
+      e.datetime, e.price, directionLabel(e.direction), tradeTypeLabel(e.tradeType) || '', e.entry ?? '', e.stop ?? '', e.target ?? '',
+      outcomeLabel(e.outcome), (e.rationale||'').replace(/\n/g,' '), (e.reflection||'').replace(/\n/g,' '),
+      metCount + '/' + TRIGGER_DEFS.length, ...TRIGGER_DEFS.map(t => triggers[t.key] ? '1' : '0')
+    ];
+  });
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'nikkei225_journal.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('failSafeCopy').addEventListener('click', async () => {
+  const ta = document.getElementById('failSafeText');
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    const btn = document.getElementById('failSafeCopy');
+    const original = btn.textContent;
+    btn.textContent = 'コピーしました';
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  } catch (e) {
+    ta.focus();
+    ta.select();
+  }
+});
+
+setNowDefault();
+loadEntries();
+</script>
+</body>
+</html>
