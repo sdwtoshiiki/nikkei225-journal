@@ -230,6 +230,7 @@
           <label class="chk"><input type="checkbox" data-key="mtfAlign"> 週足・日足など複数時間軸の方向が一致している</label>
           <label class="chk"><input type="checkbox" data-key="levelConfirm"> 重要価格帯を日足終値で確認している</label>
           <label class="chk"><input type="checkbox" data-key="invalidation"> エントリー前に無効化条件（トレンドが崩れる価格）を決めている</label>
+          <label class="chk"><input type="checkbox" data-key="targetSet"> エントリー前に利益目標（利確価格）も具体的に決めている</label>
           <label class="chk"><input type="checkbox" data-key="riskReward"> リスクリワードが1:2以上でEVがプラスと言える</label>
           <label class="chk"><input type="checkbox" data-key="eventAware"> 保有期間中の主要イベント（日銀会合・米雇用統計等）を把握し対応方針がある</label>
         </div>
@@ -285,6 +286,7 @@ const TRIGGER_DEFS = [
   { key: 'mtfAlign', label: '複数時間軸の方向が一致' },
   { key: 'levelConfirm', label: '重要価格帯を日足終値で確認' },
   { key: 'invalidation', label: '無効化条件を事前に決めている' },
+  { key: 'targetSet', label: '利益目標を事前に決めている' },
   { key: 'riskReward', label: 'リスクリワード1:2以上・EVプラス' },
   { key: 'eventAware', label: '保有期間中の主要イベントを把握' }
 ];
