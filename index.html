@@ -104,6 +104,8 @@
   .seg button.active[data-v="wait"] { background: var(--neutral-bg); color: var(--neutral-text); border-color: var(--neutral); }
   .seg button.active[data-v="trend"] { background: var(--accent-bg); color: var(--accent-text); border-color: var(--accent); }
   .seg button.active[data-v="counter"] { background: var(--purple-bg); color: var(--purple-text); border-color: var(--purple); }
+  .seg button.active[data-v="swing"] { background: var(--neutral-bg); color: var(--neutral-text); border-color: var(--neutral); }
+  .seg button.active[data-v="day"] { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger); }
 
   .btn-primary {
     width: 100%; padding: 11px; border-radius: 8px; border: none;
@@ -125,6 +127,8 @@
   .badge.wait { background: var(--neutral-bg); color: var(--neutral-text); }
   .badge.trend { background: var(--accent-bg); color: var(--accent-text); }
   .badge.counter { background: var(--purple-bg); color: var(--purple-text); }
+  .badge.swing { background: transparent; border: 1px solid var(--border-strong); color: var(--text-mute); }
+  .badge.day { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
   .badge.outline { background: transparent; border: 1px solid var(--border-strong); color: var(--text-mute); }
   .badge-row { display: flex; gap: 6px; align-items: center; }
 
@@ -206,6 +210,14 @@
         </div>
       </div>
 
+      <div class="field">
+        <label>スタイル</label>
+        <div class="seg" id="segStyle">
+          <button type="button" data-v="swing">スイング</button>
+          <button type="button" data-v="day">デイ</button>
+        </div>
+      </div>
+
       <div id="priceFields">
         <div class="row3">
           <div class="field">
@@ -225,16 +237,8 @@
 
       <div class="field">
         <label>エントリーのきっかけチェックリスト</label>
-        <div class="checklist" id="checklist">
-          <label class="chk"><input type="checkbox" data-key="trendAlign"> 中長期トレンド認識：日足/週足でトレンド方向を判断できている</label>
-          <label class="chk"><input type="checkbox" data-key="mtfAlign"> 週足・日足など複数時間軸の方向が一致している</label>
-          <label class="chk"><input type="checkbox" data-key="levelConfirm"> 重要価格帯を日足終値で確認している</label>
-          <label class="chk"><input type="checkbox" data-key="invalidation"> エントリー前に無効化条件（トレンドが崩れる価格）を決めている</label>
-          <label class="chk"><input type="checkbox" data-key="targetSet"> エントリー前に利益目標（利確価格）も具体的に決めている</label>
-          <label class="chk"><input type="checkbox" data-key="riskReward"> リスクリワードが1:2以上でEVがプラスと言える</label>
-          <label class="chk"><input type="checkbox" data-key="eventAware"> 保有期間中の主要イベント（日銀会合・米雇用統計等）を把握し対応方針がある</label>
-        </div>
-        <div class="chk-score">きっかけの充足度：<span class="n" id="chkScore">0/5</span></div>
+        <div class="checklist" id="checklist"></div>
+        <div class="chk-score">きっかけの充足度：<span class="n" id="chkScore">0/0</span></div>
       </div>
 
       <div class="field">
@@ -269,6 +273,16 @@
   </div>
 
   <div class="card">
+    <h2>CSVから取り込む</h2>
+    <div class="field">
+      <label>このジャーナルから書き出したCSVファイルを選択</label>
+      <input type="file" id="csvFile" accept=".csv,text/csv">
+    </div>
+    <div id="csvPreview" style="font-size:12px;color:var(--text-mute);margin-bottom:10px;"></div>
+    <button type="button" class="btn-primary" id="csvImportBtn" disabled>インポート</button>
+  </div>
+
+  <div class="card">
     <div class="toolbar">
       <button class="btn-secondary" id="exportBtn">CSV書き出し</button>
       <button class="btn-secondary" id="resetBtn">全て削除</button>
@@ -281,7 +295,7 @@
 
 <script>
 const STORAGE_KEY = 'entries';
-const TRIGGER_DEFS = [
+const SWING_TRIGGERS = [
   { key: 'trendAlign', label: '中長期トレンド認識（日足/週足）' },
   { key: 'mtfAlign', label: '複数時間軸の方向が一致' },
   { key: 'levelConfirm', label: '重要価格帯を日足終値で確認' },
@@ -290,11 +304,38 @@ const TRIGGER_DEFS = [
   { key: 'riskReward', label: 'リスクリワード1:2以上・EVプラス' },
   { key: 'eventAware', label: '保有期間中の主要イベントを把握' }
 ];
+const DAY_TRIGGERS = [
+  { key: 'tf5_15', label: '5分・15分足でエントリーサインを確認' },
+  { key: 'atrAdjust', label: 'ATRに応じて損切り幅を調整（固定幅にしていない）' },
+  { key: 'targetSet2x', label: '利益目標を損切り幅の最低2倍に設定' },
+  { key: 'noCarry', label: 'その日のうちに手仕舞う予定（持ち越さない）' },
+  { key: 'dailyLossOk', label: '1日の最大損失（3万円）にまだ達していない' },
+  { key: 'avoidWindow', label: '寄り付き直後15分・指標発表前後30分を避けている' }
+];
+
+function currentTriggerDefs() {
+  return style === 'day' ? DAY_TRIGGERS : SWING_TRIGGERS;
+}
+
+function triggerDefsFor(entryStyle) {
+  return entryStyle === 'day' ? DAY_TRIGGERS : SWING_TRIGGERS;
+}
+
 let entries = [];
 let editingId = null;
 let direction = null;
 let tradeType = null;
+let style = null;
 let lastSaveError = null;
+
+function renderChecklist(preserveState) {
+  const prior = preserveState || getChecklistState();
+  const defs = currentTriggerDefs();
+  document.getElementById('checklist').innerHTML = defs.map(t => `
+    <label class="chk"><input type="checkbox" data-key="${t.key}" ${prior[t.key] ? 'checked' : ''}> ${t.label}</label>
+  `).join('');
+  updateChecklistScore();
+}
 
 function getChecklistState() {
   const state = {};
@@ -305,19 +346,30 @@ function getChecklistState() {
 }
 
 function setChecklistState(state) {
-  document.querySelectorAll('#checklist input[type=checkbox]').forEach(cb => {
-    cb.checked = !!(state && state[cb.dataset.key]);
-  });
-  updateChecklistScore();
+  renderChecklist(state || {});
 }
 
 function updateChecklistScore() {
   const state = getChecklistState();
   const count = Object.values(state).filter(Boolean).length;
-  document.getElementById('chkScore').textContent = count + '/' + TRIGGER_DEFS.length;
+  document.getElementById('chkScore').textContent = count + '/' + currentTriggerDefs().length;
 }
 
 document.getElementById('checklist').addEventListener('change', updateChecklistScore);
+
+function setStyle(v) {
+  style = v;
+  document.querySelectorAll('#segStyle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === style);
+  });
+  renderChecklist();
+}
+
+document.getElementById('segStyle').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button');
+  if (!btn) return;
+  setStyle(style === btn.dataset.v ? null : btn.dataset.v);
+});
 
 function setNowDefault() {
   const now = new Date();
@@ -384,6 +436,10 @@ function tradeTypeLabel(t) {
   return { trend: '順張り', counter: '逆張り' }[t] || null;
 }
 
+function styleLabel(s) {
+  return { swing: 'スイング', day: 'デイ' }[s] || null;
+}
+
 function computeRR(e) {
   if (e.direction === 'wait' || !e.entry || !e.stop || !e.target) return null;
   let risk, reward;
@@ -424,11 +480,12 @@ function renderHistory() {
   list.innerHTML = sorted.map(e => {
     const rr = computeRR(e);
     const triggers = e.triggers || {};
-    const metCount = TRIGGER_DEFS.filter(t => triggers[t.key]).length;
+    const entryDefs = triggerDefsFor(e.style);
+    const metCount = entryDefs.filter(t => triggers[t.key]).length;
     const triggerHtml = `
-      <div class="trigger-summary">きっかけ充足度：<span class="v">${metCount}/${TRIGGER_DEFS.length}</span></div>
+      <div class="trigger-summary">きっかけ充足度：<span class="v">${metCount}/${entryDefs.length}</span></div>
       <ul class="trigger-list">
-        ${TRIGGER_DEFS.map(t => `<li class="${triggers[t.key] ? 'ok' : 'no'}">${t.label}</li>`).join('')}
+        ${entryDefs.map(t => `<li class="${triggers[t.key] ? 'ok' : 'no'}">${t.label}</li>`).join('')}
       </ul>
     `;
     let priceLines = '';
@@ -447,6 +504,7 @@ function renderHistory() {
           <span class="badge-row">
             <span class="badge ${e.direction}">${directionLabel(e.direction)}</span>
             ${e.tradeType ? `<span class="badge ${e.tradeType}">${tradeTypeLabel(e.tradeType)}</span>` : ''}
+            ${e.style ? `<span class="badge ${e.style}">${styleLabel(e.style)}</span>` : ''}
           </span>
         </div>
         <div class="entry-body">
@@ -503,12 +561,18 @@ function renderBreakdown() {
   const box = document.getElementById('breakdownRow');
   const trendList = entries.filter(e => e.tradeType === 'trend');
   const counterList = entries.filter(e => e.tradeType === 'counter');
-  if (!trendList.length && !counterList.length) { box.innerHTML = ''; return; }
+  const swingList = entries.filter(e => (e.style || 'swing') === 'swing' && e.direction !== 'wait');
+  const dayList = entries.filter(e => e.style === 'day' && e.direction !== 'wait');
+  if (!trendList.length && !counterList.length && !swingList.length && !dayList.length) { box.innerHTML = ''; return; }
   const trendWR = winRateOf(trendList);
   const counterWR = winRateOf(counterList);
+  const swingWR = winRateOf(swingList);
+  const dayWR = winRateOf(dayList);
   box.innerHTML = `
     <span>順張り：<b>${trendList.length}件</b>（勝率 <b>${trendWR === null ? '—' : trendWR + '%'}</b>）</span>
     <span>逆張り：<b>${counterList.length}件</b>（勝率 <b>${counterWR === null ? '—' : counterWR + '%'}</b>）</span>
+    <span>スイング：<b>${swingList.length}件</b>（勝率 <b>${swingWR === null ? '—' : swingWR + '%'}</b>）</span>
+    <span>デイ：<b>${dayList.length}件</b>（勝率 <b>${dayWR === null ? '—' : dayWR + '%'}</b>）</span>
   `;
 }
 
@@ -552,6 +616,7 @@ function loadIntoForm(id) {
   document.getElementById('f_price').value = e.price;
   setDirection(e.direction);
   setTradeType(e.tradeType || null);
+  setStyle(e.style || 'swing');
   document.getElementById('f_entry').value = e.entry ?? '';
   document.getElementById('f_stop').value = e.stop ?? '';
   document.getElementById('f_target').value = e.target ?? '';
@@ -573,6 +638,7 @@ document.getElementById('entryForm').addEventListener('submit', async (ev) => {
     price: document.getElementById('f_price').value,
     direction: direction,
     tradeType: tradeType,
+    style: style,
     entry: document.getElementById('f_entry').value || null,
     stop: document.getElementById('f_stop').value || null,
     target: document.getElementById('f_target').value || null,
@@ -609,6 +675,7 @@ document.getElementById('entryForm').addEventListener('submit', async (ev) => {
   setNowDefault();
   setDirection(null);
   setTradeType(null);
+  setStyle('swing');
   setChecklistState({});
   document.querySelectorAll('#segDirection button').forEach(b => b.classList.remove('active'));
   submitBtn.disabled = false;
@@ -629,16 +696,195 @@ document.getElementById('resetBtn').addEventListener('click', async () => {
   }
 });
 
+function looksLikeBrokerCSV(headers) {
+  return headers.includes('約定日時') && headers.includes('取引') && headers.includes('約定単価');
+}
+
+function cleanNumber(s) {
+  if (s == null) return '';
+  return String(s).replace(/,/g, '').trim();
+}
+
+function parseBrokerDateTime(s) {
+  const parts = String(s).trim().split(' ');
+  const datePart = parts[0] || '';
+  const timePart = parts[1] || '00:00:00';
+  const [y, m, d] = datePart.split('/');
+  if (!y || !m || !d) return '';
+  const hm = timePart.slice(0, 5);
+  return y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0') + 'T' + hm;
+}
+
+function brokerRowsToEntries(dataObjs) {
+  const opens = [];
+  const pairs = [];
+  dataObjs.forEach(r => {
+    const action = r['取引'];
+    if (action === '新規買' || action === '新規売') {
+      opens.push(r);
+    } else if (action === '決済買' || action === '決済売') {
+      const o = opens.shift();
+      if (o) pairs.push([o, r]);
+    }
+  });
+  return pairs.map(([o, c], idx) => {
+    const pnl = parseFloat(cleanNumber(c['決済損益'])) || 0;
+    const entryPrice = cleanNumber(o['約定単価']);
+    const exitPrice = cleanNumber(c['約定単価']);
+    const pnlStr = (pnl >= 0 ? '+' : '') + pnl.toLocaleString();
+    return {
+      id: Date.now().toString(36) + '-b' + idx + '-' + Math.random().toString(36).slice(2, 6),
+      datetime: parseBrokerDateTime(o['約定日時']),
+      price: entryPrice,
+      direction: o['取引'] === '新規買' ? 'buy' : 'sell',
+      style: 'day',
+      tradeType: null,
+      entry: entryPrice,
+      stop: null,
+      target: null,
+      outcome: pnl >= 0 ? 'target_hit' : 'stop_hit',
+      rationale: '',
+      reflection: '決済: ' + exitPrice + '円（' + c['約定日時'] + '）／実現損益 ' + pnlStr + '円（手数料込み）／証券会社の約定履歴から自動インポート',
+      triggers: {}
+    };
+  });
+}
+
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+    if (inQuotes) {
+      if (c === '"' && next === '"') { field += '"'; i++; }
+      else if (c === '"') { inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c !== ''));
+}
+
+function csvRowToEntry(obj, salt) {
+  const directionRev = { '買い': 'buy', '売り': 'sell', '見送り': 'wait' };
+  const styleRev = { 'スイング': 'swing', 'デイ': 'day' };
+  const tradeTypeRev = { '順張り': 'trend', '逆張り': 'counter' };
+  const outcomeRev = { '未確定': 'pending', '利確ヒット': 'target_hit', '損切りヒット': 'stop_hit', '見送り正解': 'wait_correct', '見送り外れ': 'wait_missed' };
+
+  const styleKey = styleRev[obj['スタイル']] || 'swing';
+  const defs = triggerDefsFor(styleKey);
+  const prefix = styleKey === 'day' ? '[デイ] ' : '[スイング] ';
+  const triggers = {};
+  defs.forEach(t => {
+    if (obj[prefix + t.label] === '1') triggers[t.key] = true;
+  });
+
+  return {
+    id: Date.now().toString(36) + '-' + salt + '-' + Math.random().toString(36).slice(2, 6),
+    datetime: obj['日時'] || '',
+    price: obj['現在値'] || '',
+    direction: directionRev[obj['シナリオ']] || 'wait',
+    style: styleKey,
+    tradeType: tradeTypeRev[obj['トレードタイプ']] || null,
+    entry: obj['エントリー'] || null,
+    stop: obj['損切り'] || null,
+    target: obj['利確'] || null,
+    outcome: outcomeRev[obj['結果']] || 'pending',
+    rationale: obj['根拠'] || '',
+    reflection: obj['反省'] || '',
+    triggers: triggers
+  };
+}
+
+let pendingImportEntries = [];
+
+document.getElementById('csvFile').addEventListener('change', (ev) => {
+  const file = ev.target.files[0];
+  const preview = document.getElementById('csvPreview');
+  const importBtn = document.getElementById('csvImportBtn');
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const rows = parseCSV(reader.result);
+      if (rows.length < 2) {
+        preview.textContent = '有効なデータ行が見つかりませんでした。';
+        importBtn.disabled = true;
+        return;
+      }
+      const headers = rows[0];
+      const dataObjs = rows.slice(1).map(r => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = r[i] !== undefined ? r[i] : ''; });
+        return obj;
+      });
+
+      if (looksLikeBrokerCSV(headers)) {
+        pendingImportEntries = brokerRowsToEntries(dataObjs);
+        preview.textContent = '証券会社の約定履歴を検出しました。新規と決済を自動的に組み合わせ、' + pendingImportEntries.length + '件の取引として検出しました（スタイルは「デイ」として登録されます）。内容を確認の上「インポート」を押してください。';
+      } else {
+        pendingImportEntries = dataObjs.map((obj, idx) => csvRowToEntry(obj, idx));
+        preview.textContent = pendingImportEntries.length + '件のデータを検出しました。内容を確認の上「インポート」を押してください。';
+      }
+      importBtn.disabled = pendingImportEntries.length === 0;
+    } catch (e) {
+      preview.textContent = '読み込みエラー: ' + e.message;
+      importBtn.disabled = true;
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+});
+
+document.getElementById('csvImportBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('csvImportBtn');
+  const preview = document.getElementById('csvPreview');
+  btn.disabled = true;
+  btn.textContent = '取り込み中…';
+
+  const newEntries = pendingImportEntries;
+  const previousEntries = entries;
+  entries = [...entries, ...newEntries];
+  const ok = await saveEntries();
+
+  if (!ok) {
+    entries = previousEntries;
+    preview.textContent = 'インポートの保存に失敗しました。もう一度お試しください。';
+    btn.disabled = false;
+    btn.textContent = 'インポート';
+    return;
+  }
+
+  preview.textContent = newEntries.length + '件を取り込みました。';
+  pendingImportEntries = [];
+  document.getElementById('csvFile').value = '';
+  btn.disabled = true;
+  btn.textContent = 'インポート';
+  render();
+});
+
 document.getElementById('exportBtn').addEventListener('click', () => {
   if (!entries.length) { alert('記録がありません。'); return; }
-  const headers = ['日時','現在値','シナリオ','トレードタイプ','エントリー','損切り','利確','結果','根拠','反省','きっかけ充足度', ...TRIGGER_DEFS.map(t => t.label)];
+  const allTriggerCols = [
+    ...SWING_TRIGGERS.map(t => ({ key: t.key, label: '[スイング] ' + t.label, style: 'swing' })),
+    ...DAY_TRIGGERS.map(t => ({ key: t.key, label: '[デイ] ' + t.label, style: 'day' }))
+  ];
+  const headers = ['日時','現在値','シナリオ','スタイル','トレードタイプ','エントリー','損切り','利確','結果','根拠','反省','きっかけ充足度', ...allTriggerCols.map(t => t.label)];
   const rows = entries.map(e => {
     const triggers = e.triggers || {};
-    const metCount = TRIGGER_DEFS.filter(t => triggers[t.key]).length;
+    const entryDefs = triggerDefsFor(e.style);
+    const metCount = entryDefs.filter(t => triggers[t.key]).length;
     return [
-      e.datetime, e.price, directionLabel(e.direction), tradeTypeLabel(e.tradeType) || '', e.entry ?? '', e.stop ?? '', e.target ?? '',
+      e.datetime, e.price, directionLabel(e.direction), styleLabel(e.style) || '', tradeTypeLabel(e.tradeType) || '', e.entry ?? '', e.stop ?? '', e.target ?? '',
       outcomeLabel(e.outcome), (e.rationale||'').replace(/\n/g,' '), (e.reflection||'').replace(/\n/g,' '),
-      metCount + '/' + TRIGGER_DEFS.length, ...TRIGGER_DEFS.map(t => triggers[t.key] ? '1' : '0')
+      metCount + '/' + entryDefs.length,
+      ...allTriggerCols.map(col => (col.style === (e.style || 'swing')) ? (triggers[col.key] ? '1' : '0') : '')
     ];
   });
   const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -665,6 +911,7 @@ document.getElementById('failSafeCopy').addEventListener('click', async () => {
   }
 });
 
+setStyle('swing');
 setNowDefault();
 loadEntries();
 </script>
