@@ -119,6 +119,17 @@
 
   .entry { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
   .entry:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+
+  .month-group { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  .month-group-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; user-select: none; background: var(--bg); }
+  .month-group-title { font-weight: 600; font-size: 14px; }
+  .month-group-meta { flex: 1; text-align: right; font-size: 12px; color: var(--text-mute); }
+  .month-group-meta .pos { color: var(--accent); font-weight: 600; }
+  .month-group-meta .neg { color: var(--danger); font-weight: 600; }
+  .month-group .chevron { color: var(--text-faint); transition: transform 0.2s ease; flex-shrink: 0; }
+  .month-group.open .chevron { transform: rotate(90deg); }
+  .month-group-body { display: none; padding: 4px 14px 14px; }
+  .month-group.open .month-group-body { display: block; }
   .entry-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .entry-head .dt { font-size: 12px; color: var(--text-faint); font-family: var(--mono); }
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
@@ -493,58 +504,109 @@ function renderStats() {
   `;
 }
 
+function entryCardHtml(e) {
+  const rr = computeRR(e);
+  const triggers = e.triggers || {};
+  const entryDefs = triggerDefsFor(e.style);
+  const metCount = entryDefs.filter(t => triggers[t.key]).length;
+  const triggerHtml = `
+    <div class="trigger-summary">きっかけ充足度：<span class="v">${metCount}/${entryDefs.length}</span></div>
+    <ul class="trigger-list">
+      ${entryDefs.map(t => `<li class="${triggers[t.key] ? 'ok' : 'no'}">${t.label}</li>`).join('')}
+    </ul>
+  `;
+  let priceLines = '';
+  if (e.direction !== 'wait') {
+    priceLines = `
+      <div class="line"><span class="k">エントリー</span><span class="v">${e.entry ?? '—'}</span></div>
+      <div class="line"><span class="k">損切り</span><span class="v">${e.stop ?? '—'}</span></div>
+      <div class="line"><span class="k">利確</span><span class="v">${e.target ?? '—'}</span></div>
+      ${rr ? `<div class="line"><span class="k">リスクリワード</span><span class="v">1:${rr}</span></div>` : ''}
+    `;
+  }
+  return `
+    <div class="entry" data-id="${e.id}">
+      <div class="entry-head">
+        <span class="dt">${fmtDt(e.datetime)} ・ ${e.price}円</span>
+        <span class="badge-row">
+          <span class="badge ${e.direction}">${directionLabel(e.direction)}</span>
+          ${e.tradeType ? `<span class="badge ${e.tradeType}">${tradeTypeLabel(e.tradeType)}</span>` : ''}
+          ${e.style ? `<span class="badge ${e.style}">${styleLabel(e.style)}</span>` : ''}
+        </span>
+      </div>
+      ${hasPnl(e) ? `<div class="pnl-tag ${Number(e.pnl) > 0 ? 'pos' : (Number(e.pnl) < 0 ? 'neg' : 'zero')}">${Number(e.pnl) >= 0 ? '+' : ''}${Number(e.pnl).toLocaleString()}円</div>` : ''}
+      <div class="entry-body">
+        ${priceLines}
+        <div class="line"><span class="k">結果</span><span class="v">${outcomeLabel(e.outcome)}</span></div>
+      </div>
+      ${triggerHtml}
+      ${e.rationale ? `<div class="entry-note"><strong>根拠:</strong> ${escapeHtml(e.rationale)}</div>` : ''}
+      ${e.reflection ? `<div class="entry-note"><strong>反省:</strong> ${escapeHtml(e.reflection)}</div>` : ''}
+      <div class="entry-actions">
+        <button class="editBtn">編集</button>
+        <button class="delBtn">削除</button>
+      </div>
+    </div>
+  `;
+}
+
+function monthGroupLabel(k) {
+  if (k === '不明') return '日時未設定';
+  const [y, m] = k.split('-');
+  return y + '年' + parseInt(m, 10) + '月';
+}
+
+let openMonths = new Set();
+
 function renderHistory() {
   const list = document.getElementById('historyList');
   if (!entries.length) {
     list.innerHTML = '<div class="empty">まだ記録がありません。上のフォームから最初の記録を追加してください。</div>';
     return;
   }
-  const sorted = [...entries].sort((a,b) => new Date(b.datetime) - new Date(a.datetime));
-  list.innerHTML = sorted.map(e => {
-    const rr = computeRR(e);
-    const triggers = e.triggers || {};
-    const entryDefs = triggerDefsFor(e.style);
-    const metCount = entryDefs.filter(t => triggers[t.key]).length;
-    const triggerHtml = `
-      <div class="trigger-summary">きっかけ充足度：<span class="v">${metCount}/${entryDefs.length}</span></div>
-      <ul class="trigger-list">
-        ${entryDefs.map(t => `<li class="${triggers[t.key] ? 'ok' : 'no'}">${t.label}</li>`).join('')}
-      </ul>
-    `;
-    let priceLines = '';
-    if (e.direction !== 'wait') {
-      priceLines = `
-        <div class="line"><span class="k">エントリー</span><span class="v">${e.entry ?? '—'}</span></div>
-        <div class="line"><span class="k">損切り</span><span class="v">${e.stop ?? '—'}</span></div>
-        <div class="line"><span class="k">利確</span><span class="v">${e.target ?? '—'}</span></div>
-        ${rr ? `<div class="line"><span class="k">リスクリワード</span><span class="v">1:${rr}</span></div>` : ''}
-      `;
-    }
+  const sorted = [...entries].sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+  const groups = {};
+  sorted.forEach(e => {
+    const k = e.datetime ? e.datetime.slice(0, 7) : '不明';
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(e);
+  });
+  const monthKeys = Object.keys(groups).sort().reverse();
+
+  if (openMonths.size === 0 && monthKeys.length) {
+    openMonths.add(monthKeys[0]);
+  }
+
+  list.innerHTML = monthKeys.map(k => {
+    const groupEntries = groups[k];
+    const pnlSum = groupEntries.filter(hasPnl).reduce((s, e) => s + Number(e.pnl), 0);
+    const hasAnyPnl = groupEntries.some(hasPnl);
+    const isOpen = openMonths.has(k);
     return `
-      <div class="entry" data-id="${e.id}">
-        <div class="entry-head">
-          <span class="dt">${fmtDt(e.datetime)} ・ ${e.price}円</span>
-          <span class="badge-row">
-            <span class="badge ${e.direction}">${directionLabel(e.direction)}</span>
-            ${e.tradeType ? `<span class="badge ${e.tradeType}">${tradeTypeLabel(e.tradeType)}</span>` : ''}
-            ${e.style ? `<span class="badge ${e.style}">${styleLabel(e.style)}</span>` : ''}
+      <div class="month-group ${isOpen ? 'open' : ''}" data-month="${k}">
+        <div class="month-group-head">
+          <span class="month-group-title">${monthGroupLabel(k)}</span>
+          <span class="month-group-meta">
+            ${groupEntries.length}件
+            ${hasAnyPnl ? `<span class="${pnlSum >= 0 ? 'pos' : 'neg'}">（${pnlSum >= 0 ? '+' : ''}${pnlSum.toLocaleString()}円）</span>` : ''}
           </span>
+          <span class="chevron">▸</span>
         </div>
-        ${hasPnl(e) ? `<div class="pnl-tag ${Number(e.pnl) > 0 ? 'pos' : (Number(e.pnl) < 0 ? 'neg' : 'zero')}">${Number(e.pnl) >= 0 ? '+' : ''}${Number(e.pnl).toLocaleString()}円</div>` : ''}
-        <div class="entry-body">
-          ${priceLines}
-          <div class="line"><span class="k">結果</span><span class="v">${outcomeLabel(e.outcome)}</span></div>
-        </div>
-        ${triggerHtml}
-        ${e.rationale ? `<div class="entry-note"><strong>根拠:</strong> ${escapeHtml(e.rationale)}</div>` : ''}
-        ${e.reflection ? `<div class="entry-note"><strong>反省:</strong> ${escapeHtml(e.reflection)}</div>` : ''}
-        <div class="entry-actions">
-          <button class="editBtn">編集</button>
-          <button class="delBtn">削除</button>
+        <div class="month-group-body">
+          ${groupEntries.map(entryCardHtml).join('')}
         </div>
       </div>
     `;
   }).join('');
+
+  list.querySelectorAll('.month-group-head').forEach(head => {
+    head.addEventListener('click', () => {
+      const group = head.closest('.month-group');
+      const k = group.dataset.month;
+      if (openMonths.has(k)) openMonths.delete(k); else openMonths.add(k);
+      group.classList.toggle('open');
+    });
+  });
 
   list.querySelectorAll('.editBtn').forEach(btn => {
     btn.addEventListener('click', (ev) => {
