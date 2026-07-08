@@ -132,6 +132,19 @@
   .badge.outline { background: transparent; border: 1px solid var(--border-strong); color: var(--text-mute); }
   .badge-row { display: flex; gap: 6px; align-items: center; }
 
+  .pnl-tag { font-family: var(--mono); font-size: 16px; font-weight: 700; margin-top: 8px; }
+  .pnl-tag.pos { color: var(--accent); }
+  .pnl-tag.neg { color: var(--danger); }
+  .pnl-tag.zero { color: var(--text-mute); }
+
+  .month-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .month-row:last-child { border-bottom: none; }
+  .month-label { font-family: var(--mono); color: var(--text-mute); width: 72px; flex-shrink: 0; }
+  .month-pnl { font-family: var(--mono); font-weight: 700; flex: 1; }
+  .month-pnl.pos { color: var(--accent); }
+  .month-pnl.neg { color: var(--danger); }
+  .month-meta { font-size: 12px; color: var(--text-mute); flex-shrink: 0; }
+
   .breakdown { display: flex; gap: 16px; font-size: 12px; color: var(--text-mute); margin-bottom: 22px; padding: 0 2px; flex-wrap: wrap; }
   .breakdown b { color: var(--text); font-family: var(--mono); }
   .entry-body { font-size: 13px; margin-top: 8px; color: var(--text); }
@@ -178,6 +191,11 @@
 
   <div class="stat-row" id="statRow"></div>
   <div class="breakdown" id="breakdownRow"></div>
+
+  <div class="card">
+    <h2>月別損益</h2>
+    <div id="monthlyList"><div class="status">記録がありません</div></div>
+  </div>
 
   <div class="card">
     <h2>新しい記録</h2>
@@ -255,6 +273,11 @@
           <option value="wait_correct">見送りが正解だった</option>
           <option value="wait_missed">見送ったが逆に動いた</option>
         </select>
+      </div>
+
+      <div class="field">
+        <label>実現損益（円・手数料込み、任意）</label>
+        <input type="number" step="1" id="f_pnl" placeholder="例: 8422 または -10557">
       </div>
 
       <div class="field">
@@ -507,6 +530,7 @@ function renderHistory() {
             ${e.style ? `<span class="badge ${e.style}">${styleLabel(e.style)}</span>` : ''}
           </span>
         </div>
+        ${hasPnl(e) ? `<div class="pnl-tag ${Number(e.pnl) > 0 ? 'pos' : (Number(e.pnl) < 0 ? 'neg' : 'zero')}">${Number(e.pnl) >= 0 ? '+' : ''}${Number(e.pnl).toLocaleString()}円</div>` : ''}
         <div class="entry-body">
           ${priceLines}
           <div class="line"><span class="k">結果</span><span class="v">${outcomeLabel(e.outcome)}</span></div>
@@ -557,6 +581,41 @@ function winRateOf(list) {
   return settled.length ? Math.round((wins / settled.length) * 100) : null;
 }
 
+function hasPnl(e) {
+  return e.pnl !== null && e.pnl !== undefined && e.pnl !== '' && !isNaN(Number(e.pnl));
+}
+
+function renderMonthly() {
+  const box = document.getElementById('monthlyList');
+  const withPnl = entries.filter(hasPnl);
+  if (!withPnl.length) {
+    box.innerHTML = '<div class="status">損益が入力された記録がまだありません</div>';
+    return;
+  }
+  const map = {};
+  withPnl.forEach(e => {
+    const k = e.datetime ? e.datetime.slice(0, 7) : '不明';
+    if (!map[k]) map[k] = { total: 0, count: 0, win: 0 };
+    const v = Number(e.pnl);
+    map[k].total += v;
+    map[k].count += 1;
+    if (v > 0) map[k].win += 1;
+  });
+  const months = Object.keys(map).sort().reverse();
+  box.innerHTML = months.map(k => {
+    const m = map[k];
+    const wr = m.count ? Math.round((m.win / m.count) * 100) : 0;
+    const cls = m.total > 0 ? 'pos' : (m.total < 0 ? 'neg' : '');
+    return `
+      <div class="month-row">
+        <span class="month-label">${k}</span>
+        <span class="month-pnl ${cls}">${m.total >= 0 ? '+' : ''}${m.total.toLocaleString()}円</span>
+        <span class="month-meta">${m.count}件・勝率${wr}%</span>
+      </div>
+    `;
+  }).join('');
+}
+
 function renderBreakdown() {
   const box = document.getElementById('breakdownRow');
   const trendList = entries.filter(e => e.tradeType === 'trend');
@@ -578,6 +637,7 @@ function renderBreakdown() {
 
 function render() {
   renderStats();
+  renderMonthly();
   renderBreakdown();
   renderHistory();
 }
@@ -622,6 +682,7 @@ function loadIntoForm(id) {
   document.getElementById('f_target').value = e.target ?? '';
   document.getElementById('f_rationale').value = e.rationale ?? '';
   document.getElementById('f_outcome').value = e.outcome;
+  document.getElementById('f_pnl').value = hasPnl(e) ? e.pnl : '';
   document.getElementById('f_reflection').value = e.reflection ?? '';
   setChecklistState(e.triggers);
   document.getElementById('submitBtn').textContent = '記録を更新';
@@ -644,6 +705,7 @@ document.getElementById('entryForm').addEventListener('submit', async (ev) => {
     target: document.getElementById('f_target').value || null,
     rationale: document.getElementById('f_rationale').value,
     outcome: document.getElementById('f_outcome').value,
+    pnl: document.getElementById('f_pnl').value === '' ? null : Number(document.getElementById('f_pnl').value),
     reflection: document.getElementById('f_reflection').value,
     triggers: getChecklistState()
   };
@@ -743,6 +805,7 @@ function brokerRowsToEntries(dataObjs) {
       stop: null,
       target: null,
       outcome: pnl >= 0 ? 'target_hit' : 'stop_hit',
+      pnl: pnl,
       rationale: '',
       reflection: '決済: ' + exitPrice + '円（' + c['約定日時'] + '）／実現損益 ' + pnlStr + '円（手数料込み）／証券会社の約定履歴から自動インポート',
       triggers: {}
@@ -797,6 +860,7 @@ function csvRowToEntry(obj, salt) {
     stop: obj['損切り'] || null,
     target: obj['利確'] || null,
     outcome: outcomeRev[obj['結果']] || 'pending',
+    pnl: (obj['損益(円)'] !== undefined && obj['損益(円)'] !== '') ? Number(obj['損益(円)']) : null,
     rationale: obj['根拠'] || '',
     reflection: obj['反省'] || '',
     triggers: triggers
@@ -875,14 +939,14 @@ document.getElementById('exportBtn').addEventListener('click', () => {
     ...SWING_TRIGGERS.map(t => ({ key: t.key, label: '[スイング] ' + t.label, style: 'swing' })),
     ...DAY_TRIGGERS.map(t => ({ key: t.key, label: '[デイ] ' + t.label, style: 'day' }))
   ];
-  const headers = ['日時','現在値','シナリオ','スタイル','トレードタイプ','エントリー','損切り','利確','結果','根拠','反省','きっかけ充足度', ...allTriggerCols.map(t => t.label)];
+  const headers = ['日時','現在値','シナリオ','スタイル','トレードタイプ','エントリー','損切り','利確','結果','損益(円)','根拠','反省','きっかけ充足度', ...allTriggerCols.map(t => t.label)];
   const rows = entries.map(e => {
     const triggers = e.triggers || {};
     const entryDefs = triggerDefsFor(e.style);
     const metCount = entryDefs.filter(t => triggers[t.key]).length;
     return [
       e.datetime, e.price, directionLabel(e.direction), styleLabel(e.style) || '', tradeTypeLabel(e.tradeType) || '', e.entry ?? '', e.stop ?? '', e.target ?? '',
-      outcomeLabel(e.outcome), (e.rationale||'').replace(/\n/g,' '), (e.reflection||'').replace(/\n/g,' '),
+      outcomeLabel(e.outcome), hasPnl(e) ? e.pnl : '', (e.rationale||'').replace(/\n/g,' '), (e.reflection||'').replace(/\n/g,' '),
       metCount + '/' + entryDefs.length,
       ...allTriggerCols.map(col => (col.style === (e.style || 'swing')) ? (triggers[col.key] ? '1' : '0') : '')
     ];
