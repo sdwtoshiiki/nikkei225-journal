@@ -929,6 +929,29 @@ function csvRowToEntry(obj, salt) {
   };
 }
 
+function isDuplicateEntry(candidate, existingList) {
+  return existingList.some(e =>
+    e.datetime === candidate.datetime &&
+    e.direction === candidate.direction &&
+    String(e.entry ?? '') === String(candidate.entry ?? '')
+  );
+}
+
+function dedupeAgainst(newEntries, existingEntries) {
+  const kept = [];
+  let skipped = 0;
+  const combined = existingEntries.slice();
+  newEntries.forEach(ne => {
+    if (isDuplicateEntry(ne, combined)) {
+      skipped++;
+    } else {
+      kept.push(ne);
+      combined.push(ne);
+    }
+  });
+  return { kept, skipped };
+}
+
 let pendingImportEntries = [];
 
 document.getElementById('csvFile').addEventListener('change', (ev) => {
@@ -952,13 +975,25 @@ document.getElementById('csvFile').addEventListener('change', (ev) => {
         return obj;
       });
 
+      let rawEntries;
+      let formatNote;
       if (looksLikeBrokerCSV(headers)) {
-        pendingImportEntries = brokerRowsToEntries(dataObjs);
-        preview.textContent = '証券会社の約定履歴を検出しました。新規と決済を自動的に組み合わせ、' + pendingImportEntries.length + '件の取引として検出しました（スタイルは「デイ」として登録されます）。内容を確認の上「インポート」を押してください。';
+        rawEntries = brokerRowsToEntries(dataObjs);
+        formatNote = '証券会社の約定履歴を検出しました。新規と決済を自動的に組み合わせ、';
       } else {
-        pendingImportEntries = dataObjs.map((obj, idx) => csvRowToEntry(obj, idx));
-        preview.textContent = pendingImportEntries.length + '件のデータを検出しました。内容を確認の上「インポート」を押してください。';
+        rawEntries = dataObjs.map((obj, idx) => csvRowToEntry(obj, idx));
+        formatNote = '';
       }
+
+      const { kept, skipped } = dedupeAgainst(rawEntries, entries);
+      pendingImportEntries = kept;
+
+      let msg = formatNote + kept.length + '件を新規登録の対象として検出しました。';
+      if (skipped > 0) {
+        msg += '（既存データと重複する' + skipped + '件は自動的に除外しました）';
+      }
+      msg += ' 内容を確認の上「インポート」を押してください。';
+      preview.textContent = msg;
       importBtn.disabled = pendingImportEntries.length === 0;
     } catch (e) {
       preview.textContent = '読み込みエラー: ' + e.message;
