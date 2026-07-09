@@ -64,8 +64,22 @@
   .wrap { max-width: 720px; margin: 0 auto; }
 
   header.top { margin-bottom: 22px; }
+  .title-row { display: flex; align-items: center; gap: 8px; }
   header.top h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: 0.2px; }
   header.top p { font-size: 13px; color: var(--text-mute); margin: 0; }
+  .version-badge {
+    font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-mute);
+    border: 1px solid var(--border-strong); border-radius: 20px; padding: 2px 9px;
+    cursor: pointer; flex-shrink: 0; margin-bottom: 4px;
+  }
+  .version-badge:hover { color: var(--text); border-color: var(--text-mute); }
+  .changelog { display: none; margin-top: 10px; padding: 12px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; max-height: 260px; overflow-y: auto; }
+  .changelog.show { display: block; }
+  .changelog-entry { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .changelog-entry:last-child { border-bottom: none; }
+  .changelog-entry .cv { font-family: ui-monospace, monospace; font-weight: 600; color: var(--text); }
+  .changelog-entry .cd { color: var(--text-faint); margin-left: 6px; }
+  .changelog-entry ul { margin: 4px 0 0; padding-left: 18px; color: var(--text-mute); }
 
   .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 22px; }
   .stat-box {
@@ -196,8 +210,12 @@
 <div class="wrap">
 
   <header class="top">
-    <h1>日経225ミニ 取引ジャーナル</h1>
+    <div class="title-row">
+      <h1>日経225ミニ 取引ジャーナル</h1>
+      <span class="version-badge" id="versionBadge">v1.0</span>
+    </div>
     <p>計画(Plan)を記録し、結果(Check)を積み重ねて次に活かすための記録ツール</p>
+    <div class="changelog" id="changelogPanel"></div>
   </header>
 
   <div class="stat-row" id="statRow"></div>
@@ -410,6 +428,39 @@ function setNowDefault() {
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   document.getElementById('f_datetime').value = now.toISOString().slice(0,16);
 }
+
+const APP_VERSION = 'v1.12';
+const CHANGELOG = [
+  { v: 'v1.12', date: '2026-07-08', notes: ['バージョン表示・更新履歴パネルを追加'] },
+  { v: 'v1.11', date: '2026-07-08', notes: ['CSV取り込み時に既存データとの重複を自動検出・除外'] },
+  { v: 'v1.10', date: '2026-07-08', notes: ['履歴を月ごとに折りたたみ表示（直近月のみ自動展開）'] },
+  { v: 'v1.9', date: '2026-07-08', notes: ['実現損益の入力欄を追加', '履歴に損益を色付きで表示', '月別損益の集計を追加'] },
+  { v: 'v1.8', date: '2026-07-07', notes: ['証券会社の約定履歴CSVを自動認識し、新規/決済を自動でペアリングして取り込む機能を追加'] },
+  { v: 'v1.7', date: '2026-07-07', notes: ['CSVからの記録取り込み（インポート）機能を追加'] },
+  { v: 'v1.6', date: '2026-07-06', notes: ['「スイング/デイ」のスタイルタグを追加', 'デイトレード専用のチェックリスト（6項目）を追加'] },
+  { v: 'v1.5', date: '2026-07-03', notes: ['「順張り/逆張り」のトレードタイプタグを追加', '順張り・逆張りの勝率breakdownを追加'] },
+  { v: 'v1.4', date: '2026-07-02', notes: ['チェックリストをスイングトレード向け7項目に更新'] },
+  { v: 'v1.3', date: '2026-07-01', notes: ['エントリーのきっかけチェックリストを追加'] },
+  { v: 'v1.2', date: '2026-07-01', notes: ['保存先をClaudeのwindow.storageからJSONBin.ioに移行', 'GitHub Pagesでの独立公開に対応'] },
+  { v: 'v1.1', date: '2026-06-30', notes: ['保存失敗時に入力内容を保持し自動リトライする仕組みを追加', '避難用のバックアップ表示を追加'] },
+  { v: 'v1.0', date: '2026-06-30', notes: ['初版：取引記録・履歴・CSV書き出しの基本機能'] }
+];
+
+function renderChangelog() {
+  document.getElementById('versionBadge').textContent = APP_VERSION;
+  document.getElementById('changelogPanel').innerHTML = CHANGELOG.map(c => `
+    <div class="changelog-entry">
+      <span class="cv">${c.v}</span><span class="cd">${c.date}</span>
+      <ul>${c.notes.map(n => `<li>${n}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+}
+
+document.getElementById('versionBadge').addEventListener('click', () => {
+  document.getElementById('changelogPanel').classList.toggle('show');
+});
+
+renderChangelog();
 
 const JSONBIN_ID = '6a465c5eda38895dfe223dce';
 const JSONBIN_KEY = '$2a$10$dU0iqZpuAzFeOFSJDG4IruKYigWk27bdtQL17DpJbW9an/yCr4rxi';
